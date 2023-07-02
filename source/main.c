@@ -19,7 +19,7 @@ int main(int argument_count, char *arguments[])
     mop_window window = {0};
     mop_window_init(&window, "test");
 
-    while (true)
+    while (!global_platform.do_quit)
     {
         mop_handle_messages();
     }
