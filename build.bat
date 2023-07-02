@@ -12,6 +12,9 @@ pushd build
 rem test C compilation
 cl /Fe%name% /TC %options%
 
+rem test C++ compilation
+cl /Fe%name% /TP %options%
+
 popd
 
 copy build\%name%.* %name%.* >NUL
