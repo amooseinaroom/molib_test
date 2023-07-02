@@ -2,7 +2,7 @@
 
 set name="test"
 set source=%cd%\source\main.c
-set includes=/I %cd%/molib/trunk/source
+set includes=/I %cd%/molib/source
 set options=%source% /nologo /Zi /Od /DEBUG %includes%
 
 if not exist build mkdir build
