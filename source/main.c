@@ -7,8 +7,11 @@
 #define moma_implementation
 #include "mo_memory_arena.h"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+
 #define moui_implementation
-#define moui_gl_implementation
+#define moui_gl1
 #include "mo_ui.h"
 
 #define mos_implementation
@@ -17,106 +20,66 @@
 #define mote_implementation
 #include "mo_text_edit.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
-
 #include <stdio.h>
 
 u8 _memory_buffer[10 << 20];
 
-moui_vec2s ptoui_point(mop_point point)
+moui_vec2 ptoui_point(mop_point point)
 {
-    return struct_literal(moui_vec2s) { point.x, point.y };
+    return struct_literal(moui_vec2) { (f32) point.x, (f32) point.y };
 }
 
-moui_simple_font load_font(mop_platform *platform, moma_arena *arena, cstring path, s32 height, u32 first_character, u32 character_count)
+mop_platform  *global_platform;
+moui_state    *global_uis;
+moui_renderer *global_uir;
+moui_simple_font global_font_normal;
+
+typedef moui_box2 box2;
+typedef moui_vec2 vec2;
+typedef moui_rgba rgba;
+
+
+typedef struct
 {
-    moui_simple_font font = {0};
-    font.height = height;
-    font.line_spacing = font.height;
+    f32     progress;
+    b8      is_hot;
+} ui_button_animation;
 
-    font.glyph_count = character_count;
-    font.glyphs = moma_allocate_array(arena, moui_font_glyph, font.glyph_count);
-    font.texture.width  = 512;
-    font.texture.height = 512;
+struct
+{
+    moui_id             keys[1024];
+    b8                  active[1024];
+    ui_button_animation values[1024];
+} global_button_animation_cache;
 
-    u8_array read_file_buffer;
-    read_file_buffer.count = 1 << 20;
-    read_file_buffer.base = moma_allocate_bytes(arena, read_file_buffer.count, 1);
-    mop_read_file_result result = mop_read_file(platform, read_file_buffer, path);
-    require(result.ok);
+moui_id moui_freed_id = -1;
 
-    stbtt_bakedchar *chars = moma_allocate_array(arena, stbtt_bakedchar, font.glyph_count);
-
-    u8 *texture_buffer = moma_allocate_bytes(arena, font.texture.width * font.texture.height, 1);
-    stbtt_BakeFontBitmap(result.data.base, 0, font.height, texture_buffer, font.texture.width, font.texture.height, first_character, font.glyph_count, chars);
-
-    // lame: flip texture
-    for (s32 y = 0; y < (font.texture.height + 1)/ 2; y++)
-    {
-        for (s32 x = 0; x < font.texture.width; x++)
-        {
-            u8 alpha = texture_buffer[y * font.texture.width + x];
-            texture_buffer[y * font.texture.width + x] = texture_buffer[(font.texture.height - 1 - y) * font.texture.width + x];
-            texture_buffer[(font.texture.height - 1 - y) * font.texture.width + x] = alpha;
-        }
-    }
-
-    for (u32 i = 0; i < font.glyph_count; i++)
-    {
-        moui_font_glyph *glyph = &font.glyphs[i];
-        glyph->code = first_character + i;
-        glyph->texture_box.min.x = chars[i].x0;
-        glyph->texture_box.max.x = chars[i].x1;
-        glyph->texture_box.min.y = font.texture.height - chars[i].y1;
-        glyph->texture_box.max.y = font.texture.height - chars[i].y0;
-        glyph->offset.x = chars[i].xoff;
-        glyph->offset.y = glyph->texture_box.min.y - glyph->texture_box.max.y - chars[i].yoff;
-        glyph->x_advance = chars[i].xadvance;
-    }
-
-    u32 texture_handle;
-    glGenTextures(1, &texture_handle);
-
-    glBindTexture(GL_TEXTURE_2D, texture_handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, font.texture.width, font.texture.height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, texture_buffer);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    font.texture.handle = (u8 *) (usize) texture_handle;
-
-    moma_reset(arena, read_file_buffer.base);
-
-    return font;
-}
+#define ui_button_signature void ui_button(moui_id id, vec2 center, vec2 alignment, string text)
+ui_button_signature;
 
 int main(int argument_count, char *arguments[])
 {
     moma_arena memory = { _memory_buffer, 0, carray_count(_memory_buffer) };
 
     mop_platform platform = {0};
+    global_platform = &platform;
 
     mop_init(&platform);
 
     moui_state    uis = {0};
     moui_renderer uir = {0};
+    global_uis = &uis;
+    global_uir = &uir;
+
 
     moui_init(&uir, null, 0, null, 0, null, 0);
 
-    // TODO: detect stb truetype and add moui functions
-    moui_simple_font font = load_font(&platform, &memory, "C:/windows/fonts/consola.ttf", 18, ' ', 96);
+    global_font_normal = moui_load_font_file(&platform, &memory, "C:/windows/fonts/consola.ttf", 512, 512, 18, ' ', 96);
 
-    uir.quad_count = 4096;
-    uir.quads = moma_allocate_array(&memory, moui_quad, uir.quad_count);
-    uir.texture_count = 64;
-    uir.textures = moma_allocate_array(&memory, moui_texture, uir.texture_count);
-    uir.command_count = 1024;
-    uir.commands = moma_allocate_array(&memory, moui_command, uir.command_count);
-
-    moui_set_buffers(&uir, uir.quads, uir.quad_count, uir.textures, uir.texture_count, uir.commands, uir.command_count);
+    uir.base.quad_count = 4096;
+    uir.base.texture_count = 64;
+    uir.base.command_count = 1024;
+    moui_resize_buffers(&uir, &memory);
 
     mop_window window = {0};
     mop_window_init(&platform, &window, "test");
@@ -124,6 +87,8 @@ int main(int argument_count, char *arguments[])
     // platform dependent
     moui_win32_gl_window_init(window.device_context);
     moui_win32_gl_window_bind(&uir, window.device_context);
+
+    vec2 menu_offset = {0};
 
     while (!platform.do_quit)
     {
@@ -136,12 +101,43 @@ int main(int argument_count, char *arguments[])
         moui_update(&uis, ptoui_point(window_info.size), ptoui_point(window_info.relative_mouse_position), (platform.keys[mop_key_mouse_left].is_active << 0) | (platform.keys[mop_key_mouse_middle].is_active << 1) | (platform.keys[mop_key_mouse_right].is_active << 2));
         moui_record(&uir, struct_literal(moui_vec2) { (f32) window_info.size.x, (f32) window_info.size.y });
 
+        for (u32 i = 0; i < carray_count(global_button_animation_cache.keys); i++)
+        {
+            if (!global_button_animation_cache.active[i] && global_button_animation_cache.keys[i])
+                global_button_animation_cache.keys[i] = moui_freed_id;
+
+            global_button_animation_cache.active[i] = false;
+        }
+
         // update
 
-        moui_text_cursor cursor = moui_text_cursor_at_line(struct_literal(moui_vec2s) { 20, (s32) uir.canvas_size.y - font.line_spacing - 20 });
-        moui_print(&uir, font, 0, moui_rgba_white, &cursor, s("hello world\n"));
+        rgba background_color = { 0.85f, 0.85f, 0.85f, 1.0f };
+        moui_box(&uir, -2, moui_to_quad_colors(background_color), struct_literal(box2) { 0, 0, uir.base.canvas_size.x, uir.base.canvas_size.y });
 
-        moui_printf(&uir, font, 0, moui_rgba_white, &cursor, "fps: %f\n", 1.0f / platform.delta_seconds);
+        moui_text_cursor cursor = moui_text_cursor_at_line(struct_literal(moui_vec2) { 20, uir.base.canvas_size.y - global_font_normal.line_spacing - 20 });
+        moui_print(&uir, global_font_normal, 0, moui_rgba_white, &cursor, s("hello world\n"));
+
+        moui_printf(&uir, global_font_normal, 0, moui_rgba_white, &cursor, "fps: %f\n", 1.0f / platform.delta_seconds);
+
+        vec2 alignment = { 0.0f, 0.5f };
+
+        string options[] =
+        {
+            s("New Game"),
+            s("Continue"),
+            s("Extras"),
+            s("Settings"),
+            s("Too\nLong"),
+            s("Quit"),
+        };
+
+        // drag menu
+        moui_drag_item(&uis, moui_line_id(0), true, 1000.0f, uis.cursor_active_mask & 1, &menu_offset);
+
+        for (u32 i = 0; i < carray_count(options); i++)
+        {
+            ui_button(moui_line_id(i), struct_literal(vec2) { menu_offset.x + uir.base.canvas_size.x * 0.5f, menu_offset.y + uir.base.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
+        }
 
         // render
 
@@ -149,27 +145,128 @@ int main(int argument_count, char *arguments[])
         moui_frame_begin(&uir);
 
         moui_execute(&uir);
+        moui_resize_buffers(&uir, &memory);
 
         // optional, if you don't handle it yourself
         moui_win32_gl_frame_end(&uir, window.device_context, true);
-
-        // resize ui render buffers
-        {
-            moma_free(&memory, uir.quads);
-            uir.quad_count = max(uir.quad_count, uir.quad_request_count);
-            uir.quads = moma_allocate_array(&memory, moui_quad, uir.quad_count);
-
-            // we do a doubleling stratagy, since we don't know how many different textures we missed
-            if (uir.texture_request_count > uir.texture_count)
-                uir.texture_count = 2 * uir.texture_count;
-            uir.textures = moma_allocate_array(&memory, moui_texture, uir.texture_count);
-
-            uir.command_count = max(uir.command_count, uir.command_request_count);
-            uir.commands = moma_allocate_array(&memory, moui_command, uir.command_count);
-
-            moui_set_buffers(&uir, uir.quads, uir.quad_count, uir.textures, uir.texture_count, uir.commands, uir.command_count);
-        }
     }
 
     return 0;
+}
+
+ui_button_animation * get_button_animation(moui_id id)
+{
+    assert((id != 0) && (id != moui_freed_id));
+
+    u32 free_slot = -1;
+
+    {
+        u32 slot_mask = carray_count(global_button_animation_cache.keys) - 1;
+        assert((slot_mask & (slot_mask + 1)) == 0); // slot_count is power of 2
+
+        u32 slot = id & slot_mask;
+        for (u32 step = 1; step < slot_mask; step++)
+        {
+            moui_id slot_id = global_button_animation_cache.keys[slot];
+            if (!slot_id || (slot_id == id))
+            {
+                free_slot = slot;
+                break;
+            }
+
+            if (slot_id == moui_freed_id)
+                free_slot = slot;
+
+            slot = (slot + step) & slot_mask;
+        }
+    }
+
+    if (free_slot != -1)
+    {
+        global_button_animation_cache.active[free_slot] = true;
+
+        if (global_button_animation_cache.keys[free_slot] != id)
+        {
+            global_button_animation_cache.keys[free_slot] = id;
+            global_button_animation_cache.values[free_slot] = struct_literal(ui_button_animation) {0};
+        }
+
+        return &global_button_animation_cache.values[free_slot];
+    }
+    else
+    {
+        assert(0);
+        return null;
+    }
+}
+
+f32 fast_in_slow_out(f32 zero_to_one)
+{
+    return sqrt(zero_to_one);
+}
+
+rgba rgba_lerp(rgba a, rgba b, f32 blend)
+{
+    f32 one_minus_blend = 1.0f - blend;
+    rgba result;
+    result.r = a.r * one_minus_blend + b.r * blend;
+    result.g = a.g * one_minus_blend + b.g * blend;
+    result.b = a.b * one_minus_blend + b.b * blend;
+    result.a = a.a * one_minus_blend + b.a * blend;
+
+    return result;
+}
+
+ui_button_signature
+{
+    moui_simple_text_iterator iterator = { global_font_normal, struct_literal(moui_text_cursor) {0}, text };
+    moui_simple_text_iterator size_iterator = iterator;
+    box2 box = moui_get_text_box(&size_iterator);
+    vec2 offset = { center.x - (box.max.x - box.min.x) * alignment.x - box.min.x, center.y - (box.max.y - box.min.y) * alignment.y - box.min.y};
+
+    f32 frame = 4;
+    box.min.x += offset.x - frame;
+    box.max.x += offset.x + frame;
+    box.min.y += offset.y - frame;
+    box.max.y += offset.y + frame;
+
+    b8 is_hot = moui_box_is_hot(global_uis, box);
+    f32 progress;
+    ui_button_animation *animation = get_button_animation(id);
+    animation->is_hot = is_hot; // not used
+
+    moui_item_state state = moui_item(global_uis, id, is_hot, 0.0f, global_uis->cursor_active_mask & 1);
+
+    const f32 progress_speed = 2.0f;
+
+    if (is_hot)
+        animation->progress = 1.0f; //min(animation->progress + global_platform->delta_seconds * progress_speed * 4, 1);
+    else
+        animation->progress = max(animation->progress - global_platform->delta_seconds * progress_speed, 0);
+
+    rgba colors[] =
+    {
+        { 0.0f, 0.0f, 1.0f, 1.0f },
+        { 1.0f, 0.0f, 1.0f, 1.0f },
+        { 1.0f, 0.0f, 0.0f, 1.0f },
+        { 1.0f, 1.0f, 0.0f, 1.0f },
+        // repeated last
+        { 1.0f, 1.0f, 0.0f, 1.0f },
+    };
+
+    f32 f32_index = fast_in_slow_out(animation->progress) * (carray_count(colors) - 1);
+    u32 index = (u32) f32_index;
+    f32 blend = f32_index - index;
+
+    rgba color = rgba_lerp(colors[index], colors[index + 1], blend);
+    rgba text_color = moui_rgba_white;
+    if (!state.is_active)
+        color.a = 0.5f;
+    else
+        text_color = struct_literal(rgba) { 0.5f, 0.5f, 0.5f, 1.0f };
+
+    //rgba color = { 0.1f, 0.1f, fast_in_slow_out(animation->progress) * 0.8f + 0.2f, 0.5f };
+    moui_box(global_uir, 0, moui_to_quad_colors(color), box);
+    moui_text_cursor cursor = moui_text_cursor_at_top(global_font_normal, struct_literal(vec2) { offset.x, box.max.y - frame });
+    moui_print(global_uir, global_font_normal, 1, text_color, &cursor, text);
 }
