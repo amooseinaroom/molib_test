@@ -71,7 +71,6 @@ int main(int argument_count, char *arguments[])
     global_uis = &uis;
     global_uir = &uir;
 
-
     moui_init(&uir, null, 0, null, 0, null, 0);
 
     global_font_normal = moui_load_font_file(&platform, &memory, "C:/windows/fonts/consola.ttf", 512, 512, 18, ' ', 96);
@@ -85,8 +84,8 @@ int main(int argument_count, char *arguments[])
     mop_window_init(&platform, &window, "test");
 
     // platform dependent
-    moui_win32_gl_window_init(window.device_context);
-    moui_win32_gl_window_bind(&uir, window.device_context);
+    moui_window ui_window = { window.device_context };
+    moui_window_init(&uir, &ui_window);
 
     vec2 menu_offset = {0};
 
@@ -119,36 +118,51 @@ int main(int argument_count, char *arguments[])
 
         moui_printf(&uir, global_font_normal, 0, moui_rgba_white, &cursor, "fps: %f\n", 1.0f / platform.delta_seconds);
 
-        vec2 alignment = { 0.0f, 0.5f };
-
-        string options[] =
         {
-            s("New Game"),
-            s("Continue"),
-            s("Extras"),
-            s("Settings"),
-            s("Too\nLong"),
-            s("Quit"),
-        };
+            box2 scissor_box = struct_literal(box2) { 50, 50, uir.base.canvas_size.x - 50, uir.base.canvas_size.y - 50 };
+            moui_box(&uir, -1, moui_to_quad_colors(struct_literal(rgba) { 0.2f, 0.2f, 0.2f, 0.5f }), scissor_box);
 
-        // drag menu
-        moui_drag_item(&uis, moui_line_id(0), true, 1000.0f, uis.cursor_active_mask & 1, &menu_offset);
+            f32 frame = 2;
+            scissor_box.min.x += frame;
+            scissor_box.max.x -= frame;
+            scissor_box.min.y += frame;
+            scissor_box.max.y -= frame;
+            box2 previous_box = moui_set_scissor_box(&uir, scissor_box);
 
-        for (u32 i = 0; i < carray_count(options); i++)
-        {
-            ui_button(moui_line_id(i), struct_literal(vec2) { menu_offset.x + uir.base.canvas_size.x * 0.5f, menu_offset.y + uir.base.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
+            vec2 alignment = { 0.0f, 0.5f };
+
+            string options[] =
+            {
+                s("New Game"),
+                s("Continue"),
+                s("Extras"),
+                s("Settings"),
+                s("Too\nLong"),
+                s("Quit"),
+            };
+
+            // drag menu
+            moui_drag_item(&uis, moui_line_id(0), true, 1000.0f, uis.cursor_active_mask & 1, &menu_offset);
+
+            for (u32 i = 0; i < carray_count(options); i++)
+            {
+                ui_button(moui_line_id(i), struct_literal(vec2) { menu_offset.x + uir.base.canvas_size.x * 0.5f, menu_offset.y + uir.base.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
+            }
+
+            moui_set_scissor_box(&uir, previous_box);
         }
 
         // render
 
         // optional, you can setup your render api yourself and call moui_execute when you need it in, for instance in a multi pass renderer
-        moui_frame_begin(&uir);
+        moui_default_render_begin(&uir, &ui_window);
+        moui_default_render_prepare_execute(&uir);
 
         moui_execute(&uir);
         moui_resize_buffers(&uir, &memory);
 
         // optional, if you don't handle it yourself
-        moui_win32_gl_frame_end(&uir, window.device_context, true);
+        moui_default_render_end(&uir, &ui_window, true);
     }
 
     return 0;
@@ -224,13 +238,14 @@ ui_button_signature
     box2 box = moui_get_text_box(&size_iterator);
     vec2 offset = { center.x - (box.max.x - box.min.x) * alignment.x - box.min.x, center.y - (box.max.y - box.min.y) * alignment.y - box.min.y};
 
-    f32 frame = 4;
+    const f32 frame = 4;
     box.min.x += offset.x - frame;
     box.max.x += offset.x + frame;
     box.min.y += offset.y - frame;
     box.max.y += offset.y + frame;
 
-    b8 is_hot = moui_box_is_hot(global_uis, box);
+    // TODO: support scissor_box for moui_state
+    b8 is_hot = moui_box_is_hot(global_uis, moui_box2_cut(global_uir->base.scissor_box, box));
     f32 progress;
     ui_button_animation *animation = get_button_animation(id);
     animation->is_hot = is_hot; // not used
