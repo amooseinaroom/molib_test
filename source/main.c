@@ -30,8 +30,7 @@ moui_vec2 ptoui_point(mop_point point)
 }
 
 mop_platform  *global_platform;
-moui_state    *global_uis;
-moui_renderer *global_uir;
+moui_state    *global_ui;
 moui_simple_font global_font_normal;
 
 typedef moui_box2 box2;
@@ -66,26 +65,24 @@ int main(int argument_count, char *arguments[])
 
     mop_init(&platform);
 
-    moui_state    uis = {0};
-    moui_renderer uir = {0};
-    global_uis = &uis;
-    global_uir = &uir;
+    moui_default_state ui = {0};
+    global_ui = &ui.base;
 
-    moui_init(&uir, null, 0, null, 0, null, 0);
+    moui_default_init(&ui);
 
     global_font_normal = moui_load_font_file(&platform, &memory, "C:/windows/fonts/consola.ttf", 512, 512, 18, ' ', 96);
 
-    uir.base.quad_count = 4096;
-    uir.base.texture_count = 64;
-    uir.base.command_count = 1024;
-    moui_resize_buffers(&uir, &memory);
+    ui.base.renderer.quad_count = 4096;
+    ui.base.renderer.texture_count = 64;
+    ui.base.renderer.command_count = 1024;
+    moui_resize_buffers(global_ui, &memory);
 
     mop_window window = {0};
     mop_window_init(&platform, &window, "test");
 
     // platform dependent
-    moui_window ui_window = { window.device_context };
-    moui_window_init(&uir, &ui_window);
+    moui_default_window ui_window = { window.device_context };
+    moui_default_window_init(&ui, &ui_window);
 
     vec2 menu_offset = {0};
 
@@ -97,8 +94,7 @@ int main(int argument_count, char *arguments[])
 
         mop_window_info window_info = mop_window_get_info(&platform, &window);
 
-        moui_update(&uis, ptoui_point(window_info.size), ptoui_point(window_info.relative_mouse_position), (platform.keys[mop_key_mouse_left].is_active << 0) | (platform.keys[mop_key_mouse_middle].is_active << 1) | (platform.keys[mop_key_mouse_right].is_active << 2));
-        moui_record(&uir, struct_literal(moui_vec2) { (f32) window_info.size.x, (f32) window_info.size.y });
+        moui_frame(global_ui, ptoui_point(window_info.size), ptoui_point(window_info.relative_mouse_position), (platform.keys[mop_key_mouse_left].is_active << 0) | (platform.keys[mop_key_mouse_middle].is_active << 1) | (platform.keys[mop_key_mouse_right].is_active << 2));
 
         for (u32 i = 0; i < carray_count(global_button_animation_cache.keys); i++)
         {
@@ -111,23 +107,22 @@ int main(int argument_count, char *arguments[])
         // update
 
         rgba background_color = { 0.85f, 0.85f, 0.85f, 1.0f };
-        moui_box(&uir, -2, moui_to_quad_colors(background_color), struct_literal(box2) { 0, 0, uir.base.canvas_size.x, uir.base.canvas_size.y });
+        moui_box(global_ui, -2, moui_to_quad_colors(background_color), struct_literal(box2) { 0, 0, global_ui->renderer.canvas_size.x, global_ui->renderer.canvas_size.y });
 
-        moui_text_cursor cursor = moui_text_cursor_at_line(struct_literal(moui_vec2) { 20, uir.base.canvas_size.y - global_font_normal.line_spacing - 20 });
-        moui_print(&uir, global_font_normal, 0, moui_rgba_white, &cursor, s("hello world\n"));
-
-        moui_printf(&uir, global_font_normal, 0, moui_rgba_white, &cursor, "fps: %f\n", 1.0f / platform.delta_seconds);
+        moui_text_cursor cursor = moui_text_cursor_at_top(global_font_normal, struct_literal(moui_vec2) { 8, global_ui->renderer.canvas_size.y - 4 });
+        moui_print(global_ui, global_font_normal, 0, moui_rgba_white, &cursor, s("hello world\n"));
+        moui_printf(global_ui, global_font_normal, 0, moui_rgba_white, &cursor, "fps: %f\n", 1.0f / platform.delta_seconds);
 
         {
-            box2 scissor_box = struct_literal(box2) { 50, 50, uir.base.canvas_size.x - 50, uir.base.canvas_size.y - 50 };
-            moui_box(&uir, -1, moui_to_quad_colors(struct_literal(rgba) { 0.2f, 0.2f, 0.2f, 0.5f }), scissor_box);
+            box2 scissor_box = struct_literal(box2) { 50, 50, global_ui->renderer.canvas_size.x - 50, global_ui->renderer.canvas_size.y - 50 };
+            moui_rounded_cutout_box(global_ui, -1, moui_to_quad_colors(struct_literal(rgba) { 0.2f, 0.2f, 0.2f, 0.5f }), 10, moui_to_quad_colors(background_color), scissor_box, 8);
 
-            f32 frame = 2;
+            f32 frame = 0;
             scissor_box.min.x += frame;
             scissor_box.max.x -= frame;
             scissor_box.min.y += frame;
             scissor_box.max.y -= frame;
-            box2 previous_box = moui_set_scissor_box(&uir, scissor_box);
+            box2 previous_box = moui_set_scissor_box(global_ui, scissor_box);
 
             vec2 alignment = { 0.0f, 0.5f };
 
@@ -142,27 +137,27 @@ int main(int argument_count, char *arguments[])
             };
 
             // drag menu
-            moui_drag_item(&uis, moui_line_id(0), true, 1000.0f, uis.cursor_active_mask & 1, &menu_offset);
+            moui_drag_item(global_ui, moui_line_id(0), moui_box_is_hot(global_ui, scissor_box), 1000.0f, global_ui->input.cursor_active_mask & 1, &menu_offset);
 
             for (u32 i = 0; i < carray_count(options); i++)
             {
-                ui_button(moui_line_id(i), struct_literal(vec2) { menu_offset.x + uir.base.canvas_size.x * 0.5f, menu_offset.y + uir.base.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
+                ui_button(moui_line_id(i), struct_literal(vec2) { menu_offset.x + global_ui->renderer.canvas_size.x * 0.5f, menu_offset.y + global_ui->renderer.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
             }
 
-            moui_set_scissor_box(&uir, previous_box);
+            moui_set_scissor_box(global_ui, previous_box);
         }
 
         // render
 
         // optional, you can setup your render api yourself and call moui_execute when you need it in, for instance in a multi pass renderer
-        moui_default_render_begin(&uir, &ui_window);
-        moui_default_render_prepare_execute(&uir);
+        moui_default_render_begin(&ui, &ui_window);
+        moui_default_render_prepare_execute(&ui);
 
-        moui_execute(&uir);
-        moui_resize_buffers(&uir, &memory);
+        moui_execute(global_ui);
+        moui_resize_buffers(global_ui, &memory);
 
         // optional, if you don't handle it yourself
-        moui_default_render_end(&uir, &ui_window, true);
+        moui_default_render_end(&ui, &ui_window, true);
     }
 
     return 0;
@@ -244,13 +239,12 @@ ui_button_signature
     box.min.y += offset.y - frame;
     box.max.y += offset.y + frame;
 
-    // TODO: support scissor_box for moui_state
-    b8 is_hot = moui_box_is_hot(global_uis, moui_box2_cut(global_uir->base.scissor_box, box));
+    b8 is_hot = moui_box_is_hot(global_ui, box);
     f32 progress;
     ui_button_animation *animation = get_button_animation(id);
     animation->is_hot = is_hot; // not used
 
-    moui_item_state state = moui_item(global_uis, id, is_hot, 0.0f, global_uis->cursor_active_mask & 1);
+    moui_item_state state = moui_item(global_ui, id, is_hot, 0.0f, global_ui->input.cursor_active_mask & 1);
 
     const f32 progress_speed = 2.0f;
 
@@ -281,7 +275,7 @@ ui_button_signature
         text_color = struct_literal(rgba) { 0.5f, 0.5f, 0.5f, 1.0f };
 
     //rgba color = { 0.1f, 0.1f, fast_in_slow_out(animation->progress) * 0.8f + 0.2f, 0.5f };
-    moui_box(global_uir, 0, moui_to_quad_colors(color), box);
+    moui_rounded_box(global_ui, 0, moui_to_quad_colors(color), box, 4);
     moui_text_cursor cursor = moui_text_cursor_at_top(global_font_normal, struct_literal(vec2) { offset.x, box.max.y - frame });
-    moui_print(global_uir, global_font_normal, 1, text_color, &cursor, text);
+    moui_print(global_ui, global_font_normal, 1, text_color, &cursor, text);
 }
