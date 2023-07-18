@@ -2,13 +2,21 @@
 #include "mo_basic.h"
 
 #define mop_implementation
+#define mop_debug
 #include "mo_platform.h"
 
 #define moma_implementation
 #include "mo_memory_arena.h"
 
+void stbtt_assert_wrapper(b8 ok)
+{
+    assert(ok);
+}
+
 #define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_assert stbtt_assert_wrapper
 #include "stb_truetype.h"
+
 
 #define moui_implementation
 #define moui_gl1
@@ -26,7 +34,7 @@ u8 _memory_buffer[10 << 20];
 
 moui_vec2 ptoui_point(mop_point point)
 {
-    return struct_literal(moui_vec2) { (f32) point.x, (f32) point.y };
+    return sl(moui_vec2) { (f32) point.x, (f32) point.y };
 }
 
 mop_platform  *global_platform;
@@ -68,6 +76,7 @@ int main(int argument_count, char *arguments[])
     moui_default_state ui = {0};
     global_ui = &ui.base;
 
+    // optional if you don't setup your rendering api yourself
     moui_default_init(&ui);
 
     global_font_normal = moui_load_font_file(&platform, &memory, "C:/windows/fonts/consola.ttf", 512, 512, 18, ' ', 96);
@@ -80,7 +89,7 @@ int main(int argument_count, char *arguments[])
     mop_window window = {0};
     mop_window_init(&platform, &window, "test");
 
-    // platform dependent
+    // optional if you don't setup your rendering api and prepare your windows yourself
     moui_default_window ui_window = { window.device_context };
     moui_default_window_init(&ui, &ui_window);
 
@@ -107,15 +116,15 @@ int main(int argument_count, char *arguments[])
         // update
 
         rgba background_color = { 0.85f, 0.85f, 0.85f, 1.0f };
-        moui_box(global_ui, -2, moui_to_quad_colors(background_color), struct_literal(box2) { 0, 0, global_ui->renderer.canvas_size.x, global_ui->renderer.canvas_size.y });
+        moui_box(global_ui, -2, moui_to_quad_colors(background_color), sl(box2) { 0, 0, global_ui->renderer.canvas_size.x, global_ui->renderer.canvas_size.y });
 
-        moui_text_cursor cursor = moui_text_cursor_at_top(global_font_normal, struct_literal(moui_vec2) { 8, global_ui->renderer.canvas_size.y - 4 });
+        moui_text_cursor cursor = moui_text_cursor_at_top(global_font_normal, sl(moui_vec2) { 8, global_ui->renderer.canvas_size.y - 4 });
         moui_print(global_ui, global_font_normal, 0, moui_rgba_white, &cursor, s("hello world\n"));
         moui_printf(global_ui, global_font_normal, 0, moui_rgba_white, &cursor, "fps: %f\n", 1.0f / platform.delta_seconds);
 
         {
-            box2 scissor_box = struct_literal(box2) { 50, 50, global_ui->renderer.canvas_size.x - 50, global_ui->renderer.canvas_size.y - 50 };
-            moui_rounded_cutout_box(global_ui, -1, moui_to_quad_colors(struct_literal(rgba) { 0.2f, 0.2f, 0.2f, 0.5f }), 10, moui_to_quad_colors(background_color), scissor_box, 8);
+            box2 scissor_box = sl(box2) { 50, 50, global_ui->renderer.canvas_size.x - 50, global_ui->renderer.canvas_size.y - 50 };
+            moui_rounded_cutout_box(global_ui, -1, moui_to_quad_colors(sl(rgba) { 0.2f, 0.2f, 0.2f, 0.5f }), 10, moui_to_quad_colors(background_color), scissor_box, 8);
 
             f32 frame = 0;
             scissor_box.min.x += frame;
@@ -141,7 +150,7 @@ int main(int argument_count, char *arguments[])
 
             for (u32 i = 0; i < carray_count(options); i++)
             {
-                ui_button(moui_line_id(i), struct_literal(vec2) { menu_offset.x + global_ui->renderer.canvas_size.x * 0.5f, menu_offset.y + global_ui->renderer.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
+                ui_button(moui_line_id(i), sl(vec2) { menu_offset.x + global_ui->renderer.canvas_size.x * 0.5f, menu_offset.y + global_ui->renderer.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
             }
 
             moui_set_scissor_box(global_ui, previous_box);
@@ -149,7 +158,7 @@ int main(int argument_count, char *arguments[])
 
         // render
 
-        // optional, you can setup your render api yourself and call moui_execute when you need it in, for instance in a multi pass renderer
+        // optional, you can setup your render api yourself and call moui_execute when you need it, for instance in a multi pass renderer
         moui_default_render_begin(&ui, &ui_window);
         moui_default_render_prepare_execute(&ui);
 
@@ -197,7 +206,7 @@ ui_button_animation * get_button_animation(moui_id id)
         if (global_button_animation_cache.keys[free_slot] != id)
         {
             global_button_animation_cache.keys[free_slot] = id;
-            global_button_animation_cache.values[free_slot] = struct_literal(ui_button_animation) {0};
+            global_button_animation_cache.values[free_slot] = sl(ui_button_animation) {0};
         }
 
         return &global_button_animation_cache.values[free_slot];
@@ -228,7 +237,7 @@ rgba rgba_lerp(rgba a, rgba b, f32 blend)
 
 ui_button_signature
 {
-    moui_simple_text_iterator iterator = { global_font_normal, struct_literal(moui_text_cursor) {0}, text };
+    moui_simple_text_iterator iterator = { global_font_normal, sl(moui_text_cursor) {0}, text };
     moui_simple_text_iterator size_iterator = iterator;
     box2 box = moui_get_text_box(&size_iterator);
     vec2 offset = { center.x - (box.max.x - box.min.x) * alignment.x - box.min.x, center.y - (box.max.y - box.min.y) * alignment.y - box.min.y};
@@ -272,10 +281,10 @@ ui_button_signature
     if (!state.is_active)
         color.a = 0.5f;
     else
-        text_color = struct_literal(rgba) { 0.5f, 0.5f, 0.5f, 1.0f };
+        text_color = sl(rgba) { 0.5f, 0.5f, 0.5f, 1.0f };
 
     //rgba color = { 0.1f, 0.1f, fast_in_slow_out(animation->progress) * 0.8f + 0.2f, 0.5f };
     moui_rounded_box(global_ui, 0, moui_to_quad_colors(color), box, 4);
-    moui_text_cursor cursor = moui_text_cursor_at_top(global_font_normal, struct_literal(vec2) { offset.x, box.max.y - frame });
+    moui_text_cursor cursor = moui_text_cursor_at_top(global_font_normal, sl(vec2) { offset.x, box.max.y - frame });
     moui_print(global_ui, global_font_normal, 1, text_color, &cursor, text);
 }
