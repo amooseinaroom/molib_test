@@ -122,6 +122,30 @@ int main(int argument_count, char *arguments[])
         moui_print(global_ui, global_font_normal, 0, moui_rgba_white, &cursor, s("hello world\n"));
         moui_printf(global_ui, global_font_normal, 0, moui_rgba_white, &cursor, "fps: %f\n", 1.0f / platform.delta_seconds);
 
+        f32 y = 100;
+
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 400, y }, 4.0f);
+        y += 10;
+
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 200, y + 200 }, 4.0f);
+        y += 210;
+
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 400, y + 200 }, 4.0f);
+        y += 210;
+
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 100, y }, 3.0f);
+        y += 10;
+
+        y += 200;
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y - 200 }, sl(vec2) { 200, y }, 3.0f);
+        y += 10;
+
+        y += 100;
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y - 100 }, sl(vec2) { 100, y }, 3.0f);
+        y += 10;
+
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { global_ui->renderer.canvas_size.x * 0.5f, global_ui->renderer.canvas_size.y * 0.5f }, global_ui->input.cursor, 3.0f);
+
         {
             box2 scissor_box = sl(box2) { 50, 50, global_ui->renderer.canvas_size.x - 50, global_ui->renderer.canvas_size.y - 50 };
             moui_rounded_cutout_box(global_ui, -1, moui_to_quad_colors(sl(rgba) { 0.2f, 0.2f, 0.2f, 0.5f }), 10, moui_to_quad_colors(background_color), scissor_box, 8);
