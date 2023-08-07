@@ -124,12 +124,19 @@ int main(int argument_count, char *arguments[])
 
         f32 y = 100;
 
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 400, y }, 1.0f);
+        y += 10.5f;
+
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 400, y  }, 2.0f);
+        y += 10.5f;
+
+        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 400, y }, 3.0f);
+        y += 10.5f;
+
         moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 400, y }, 4.0f);
-        y += 10;
+        y += 10.5f;
 
-        moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 200, y + 200 }, 4.0f);
-        y += 210;
-
+    #if 0
         moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { 200, y }, sl(vec2) { 400, y + 200 }, 4.0f);
         y += 210;
 
@@ -145,6 +152,7 @@ int main(int argument_count, char *arguments[])
         y += 10;
 
         moui_line(global_ui, 0,  moui_to_quad_colors(moui_rgba_white), sl(vec2) { global_ui->renderer.canvas_size.x * 0.5f, global_ui->renderer.canvas_size.y * 0.5f }, global_ui->input.cursor, 3.0f);
+    #endif
 
         {
             box2 scissor_box = sl(box2) { 50, 50, global_ui->renderer.canvas_size.x - 50, global_ui->renderer.canvas_size.y - 50 };
