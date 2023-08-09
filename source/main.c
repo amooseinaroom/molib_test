@@ -182,7 +182,7 @@ int main(int argument_count, char *arguments[])
 
             for (u32 i = 0; i < carray_count(options); i++)
             {
-                ui_button(moui_line_id(i), sl(vec2) { menu_offset.x + global_ui->renderer.canvas_size.x * 0.5f, menu_offset.y + global_ui->renderer.canvas_size.y * 0.5f - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
+                ui_button(moui_line_id(i), sl(vec2) { menu_offset.x + floorf(global_ui->renderer.canvas_size.x * 0.5f), menu_offset.y + floorf(global_ui->renderer.canvas_size.y * 0.5f) - (carray_count(options) * -0.5f + i) * 32 }, alignment, options[i]);
             }
 
             moui_set_scissor_box(global_ui, previous_box);
@@ -272,7 +272,7 @@ ui_button_signature
     moui_simple_text_iterator iterator = { global_font_normal, sl(moui_text_cursor) {0}, text };
     moui_simple_text_iterator size_iterator = iterator;
     box2 box = moui_get_text_box(&size_iterator);
-    vec2 offset = { center.x - (box.max.x - box.min.x) * alignment.x - box.min.x, center.y - (box.max.y - box.min.y) * alignment.y - box.min.y};
+    vec2 offset = { center.x - floorf((box.max.x - box.min.x) * alignment.x) - box.min.x, center.y - floorf((box.max.y - box.min.y) * alignment.y) - box.min.y};
 
     const f32 frame = 4;
     box.min.x += offset.x - frame;
