@@ -19,7 +19,7 @@ void stbtt_assert_wrapper(b8 ok)
 
 
 #define moui_implementation
-#define moui_gl1
+#define moui_gl_implementation
 #include "mo_ui.h"
 
 #define mos_implementation
