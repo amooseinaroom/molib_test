@@ -87,10 +87,10 @@ int main(int argument_count, char *arguments[])
     moui_resize_buffers(global_ui, &memory);
 
     mop_window window = {0};
-    mop_window_init(&platform, &window, "test");
+    mop_window_init(&platform, &window, "test", 1280, 720);
 
     // optional if you don't setup your rendering api and prepare your windows yourself
-    moui_default_window ui_window = { window.device_context };
+    moui_default_window ui_window = moui_get_default_platform_window(&ui, &platform, window);
     moui_default_window_init(&ui, &ui_window);
 
     vec2 menu_offset = {0};
