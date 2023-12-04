@@ -17,6 +17,13 @@ void stbtt_assert_wrapper(b8 ok)
 #define STBTT_assert stbtt_assert_wrapper
 #include "stb_truetype.h"
 
+#define mogl_implementation
+#include "mo_gl.h"
+
+#include "mo_gl_bindings.h"
+
+#define mo_gl_win32_bindings_implementation
+#include "mo_gl_win32_bindings.h"
 
 #define moui_implementation
 #define moui_gl_implementation
@@ -27,6 +34,10 @@ void stbtt_assert_wrapper(b8 ok)
 
 #define mote_implementation
 #include "mo_text_edit.h"
+
+#define mor_assert  mop_assert
+#define mor_require mop_require
+#include "mo_render_gl.c"
 
 #include <stdio.h>
 
@@ -45,7 +56,6 @@ typedef moui_box2 box2;
 typedef moui_vec2 vec2;
 typedef moui_rgba rgba;
 
-
 typedef struct
 {
     f32     progress;
@@ -63,6 +73,14 @@ moui_id moui_freed_id = -1;
 
 #define ui_button_signature void ui_button(moui_id id, vec2 center, vec2 alignment, string text)
 ui_button_signature;
+
+mor_framebuffer   render_framebuffers[32];
+mor_shader        render_shaders[32];
+mor_vertex_buffer render_vertex_buffers[32];
+mor_texture       render_textures[32];
+mor_render_pass   render_buffer_passes[32];
+mor_command       render_buffer_commands[4096];
+mor_transform     render_buffer_transforms[4096];
 
 int main(int argument_count, char *arguments[])
 {
@@ -92,6 +110,25 @@ int main(int argument_count, char *arguments[])
     // optional if you don't setup your rendering api and prepare your windows yourself
     moui_default_window ui_window = moui_get_default_platform_window(&ui, &platform, window);
     moui_default_window_init(&ui, &ui_window);
+
+    mor_renderer renderer = {0};
+    mor_init(&renderer);
+    renderer.base.framebuffers   = render_framebuffers;
+    renderer.base.shaders        = render_shaders;
+    renderer.base.vertex_buffers = render_vertex_buffers;
+    renderer.base.textures       = render_textures;
+    renderer.base.framebuffer_count   = sizeof(render_framebuffers);
+    renderer.base.shader_count        = sizeof(render_shaders);
+    renderer.base.vertex_buffer_count = sizeof(render_vertex_buffers);
+    renderer.base.texture_count       = sizeof(render_textures);
+
+    mor_command_buffer render_buffer = {0};
+    render_buffer.passes     = render_buffer_passes;
+    render_buffer.commands   = render_buffer_commands;
+    render_buffer.transforms = render_buffer_transforms;
+    render_buffer.pass_count      = sizeof(render_buffer_passes);
+    render_buffer.command_count   = sizeof(render_buffer_commands);
+    render_buffer.transform_count = sizeof(render_buffer_transforms);
 
     vec2 menu_offset = {0};
 
@@ -189,6 +226,22 @@ int main(int argument_count, char *arguments[])
         }
 
         // render
+
+        mor_clear(&renderer);
+        render_buffer.pass_used_count      = 0;
+        render_buffer.command_used_count   = 0;
+        render_buffer.transform_used_count = 0;
+
+        mor_framebuffer main_framebuffer = {0};
+
+        mor_render_pass main_pass = {0};
+        main_pass.framebuffer_index = mor_framebuffer_index(&renderer, main_framebuffer);
+        main_pass.clear_color = sl(mor_rgba) { 1.0f, 0.0f, 0.0f, 1.0f };
+        main_pass.bind_mask.clear_color = true;
+        main_pass.bind_mask.clear_depth = true;
+        mor_push_pass(&renderer, &render_buffer, main_pass);
+
+        mor_execute(&renderer, &render_buffer);
 
         // optional, you can setup your render api yourself and call moui_execute when you need it, for instance in a multi pass renderer
         moui_default_render_begin(&ui, &ui_window);
